@@ -1,112 +1,167 @@
-# The Geopolitics of Oil: Macroeconomic Impact of the 2026 Gulf Crisis
+# The Geopolitics of Oil: Oil Price Pass-Through to Inflation and the 2026 Gulf Crisis
 
-A panel data econometrics study of how the February 2026 oil price shock affected consumer price inflation across twelve advanced and emerging economies. It compares Pooled OLS, Fixed Effects, and Random Effects models, tests which one fits, examines whether oil importers and exporters responded differently, and forecasts CPI and industrial production for April to June 2026 with ARIMA.
+How much of an oil price shock reaches consumer prices, how fast, and does it hit oil importers harder than exporters? This project answers that with a monthly panel of 12 countries from January 2019 to September 2026. The panel covers the 2026 Gulf crisis, when Brent rose from about $69 in February 2026 to $99 in March.
 
 Advanced Econometrics project (BA351), Tunis Business School, 2025–2026. Supervised by Dr. Naceur Khraief.
 
-## Research Question
+## Version 3: rebuilt on official data
 
-How did the 2026 oil price shock transmit to consumer prices, and did the transmission differ between net oil importers and exporters?
+The first version of this project used a dataset (`Gulf_Crisis_Finl.xlsx`) that could not be traced to its sources. Brent and the VIX matched, but several CPI and policy rate series did not. For example, Turkey's CPI and the US policy rate for 2025–2026 were off. That dataset has been removed.
+
+Version 3 rebuilds everything from files downloaded directly from the OECD, BIS and FRED. They are stored unchanged in `data/raw/`, and every value in the panel comes from them. Nothing is estimated, filled or interpolated. Sources, the CPI series used for each country and known gaps are listed in [`data/raw/SOURCES.md`](data/raw/SOURCES.md).
+
+The original report (`docs/archive/`) is kept for the record only. Its results are superseded by the ones below.
 
 ## Data
 
-- **Sample:** 12 countries, monthly, January 2023 to March 2026 (39 months), giving a balanced panel of 468 observations. ARIMA extends forecasts to June 2026.
-- **Groups:** Advanced importers (Germany, France, Italy, Japan), advanced exporters (United States, Canada), emerging importers (Turkey, Poland, India, Thailand), emerging exporters (Saudi Arabia, Russia).
-- **Variables:** CPI and industrial production (index), Brent crude price (USD/bbl), nominal effective exchange rate (NEER), policy rate (%), and the VIX index.
-- **Sources (per the report):** IMF IFS, OECD, FRED, BIS, national central banks, and CBOE. Check each series against its source before citing.
-- **File:** `data/Gulf_Crisis_Finl.xlsx`, sheet `Gulf_Crisis`.
+- **Countries.**
+  - Oil importers: Germany, France, Italy, Japan, Korea, Poland, Turkey, India.
+  - Oil exporters: United States, Canada, Norway, Saudi Arabia.
+- **Period.** Monthly, January 2019 to September 2026 (1,116 country-months). The sample ends when the Brent series ends. It includes the 2020 collapse, the 2022 energy shock and seven months after the 2026 shock.
 
-## Model
+| Variable | Definition | Source |
+|---|---|---|
+| Headline inflation | 100 × Δ ln CPI, month on month | OECD |
+| Core inflation | Same, CPI excluding food and energy (9 countries) | OECD |
+| Oil shock | 100 × Δ ln Brent (USD/bbl, monthly average) | FRED / IMF |
+| Δ NEER | 100 × Δ ln broad nominal effective exchange rate; a rise means appreciation | BIS |
+| Δ policy rate | Monthly change in the central bank policy rate, lagged one month (ECB rate for the euro area) | BIS |
+| VIX | Monthly average of the daily close | FRED / Cboe |
 
-The inflation equation estimated is:
+## Methodology
 
-ln(CPI)ᵢₜ = αᵢ + β₁·OilShockₜ + β₂·ln(NEERᵢₜ) + β₃·PolicyRateᵢₜ + β₄·VIXₜ + β₅·PostCrisisₜ + εᵢₜ
+1. **Unit roots.** Im–Pesaran–Shin panel test on February 2019 to September 2025. Log CPI, with a trend: W̄ = 0.15, p = 0.56, so a unit root is not rejected. Monthly inflation: W̄ = −16.7, p < 0.001, so it is stationary. Every model is therefore written in inflation rates. The first version regressed the log CPI level, which risks a spurious regression.
+2. **Main model.** Country fixed effects, with calendar-month dummies for seasonality and a distributed lag of the oil shock:
 
-- **Dependent variable:** log CPI
-- **Oil shock:** monthly percentage change in Brent crude
-- **Post-crisis dummy:** 1 from March 2026 onward
+   πᵢₜ = αᵢ + Σₖ₌₀³ βₖ·Oilₜ₋ₖ + γ₀·ΔNEERᵢₜ + γ₁·ΔNEERᵢₜ₋₁ + δ·ΔPolicyᵢₜ₋₁ + θ·VIXₜ + month dummies + εᵢₜ
 
-## Methods
-
-1. Pooled OLS, Fixed Effects (within), and Random Effects (Swamy–Arora) estimators, via the `plm` package
-2. Breusch–Pagan LM test to reject Pooled OLS in favour of a panel model
-3. Hausman test to choose between Fixed and Random Effects
-4. HC3 heteroskedasticity-robust standard errors, with Arellano clustering for panel models
-5. Heterogeneity analysis: Fixed Effects models estimated separately for oil importers and exporters
-6. ARIMA forecasts for CPI and industrial production, with the order selected automatically by `auto.arima()` (corrected AIC)
+   The cumulative pass-through is β₀ + β₁ + β₂ + β₃.
+3. **Standard errors.** Driscoll–Kraay with a bandwidth of 3 months. All countries face the same oil price in the same month, so their errors are correlated. Errors that ignore this correlation overstate precision.
+4. **Headline vs core.** If oil works mainly through fuel and energy prices, it should move headline inflation and not core.
+5. **Importers vs exporters.** A two-way fixed effects model, with country and month effects and oil × importer. The month effects absorb everything common to all countries, including oil itself. Only the importer–exporter difference is identified.
+6. **Local projections** (Jordà, 2005). The cumulative CPI response 0 to 12 months after a 1% oil shock.
+7. **The 2026 episode.**
+   - Inflation from March to September 2026 compared with the same months of 2025.
+   - The part explained by oil, using coefficients estimated only on data before 2026.
+   - An ARIMA counterfactual fitted up to February 2026.
+8. **Robustness.** Three variants: excluding Turkey (very high inflation), estimating on 2023 onward only, and estimating only on data before the 2026 shock.
 
 ## Results
 
-Main regression (dependent variable: ln CPI, n = 468). Standard errors in parentheses. \*\*\* p < 0.01.
+Standard errors are Driscoll–Kraay. Effects are in percentage points (pp) of monthly inflation per 1% change in Brent.
 
-| Variable | Pooled OLS | Fixed Effects | Random Effects |
+### Main model (n = 1,066)
+
+| Variable | Coefficient | SE | p |
 |---|---|---|---|
-| Oil shock (Brent % change) | 0.0020 (0.0031) | 0.0004 (0.0003) | 0.0004 (0.0003) |
-| ln NEER | −0.494*** (0.078) | −1.553*** (0.034) | −1.550*** (0.034) |
-| Policy rate | 0.045*** (0.003) | 0.0032*** (0.0005) | 0.0032*** (0.0005) |
-| VIX | 0.008 (0.005) | 0.0032*** (0.0005) | 0.0032*** (0.0005) |
-| Post-crisis | −0.145 (0.216) | −0.021 (0.020) | −0.021 (0.020) |
+| Oil, month t | 0.0119 | 0.0040 | 0.003 |
+| Oil, t−1 | 0.0049 | 0.0019 | 0.011 |
+| Oil, t−2 | 0.0014 | 0.0028 | 0.62 |
+| Oil, t−3 | 0.0013 | 0.0032 | 0.68 |
+| **Cumulative (t to t−3)** | **0.0195** | **0.0093** | **0.036** |
+| Δ NEER, t | −0.075 | 0.041 | 0.065 |
+| Δ NEER, t−1 | −0.154 | 0.057 | 0.008 |
+| Δ policy rate, t−1 | 0.197 | 0.095 | 0.038 |
+| VIX | 0.006 | 0.007 | 0.41 |
 
-**Diagnostics**
-- Breusch–Pagan: χ² = 6309.7, p < 2.2e-16. Pooled OLS is rejected.
-- Hausman: χ² = 5.09, df = 5, p = 0.405. Random Effects is consistent and is the preferred model.
+A 10% rise in Brent adds about 0.12 pp to inflation in the same month and about 0.2 pp to the price level within a quarter. Most of the effect arrives within two months. A 1% currency appreciation lowers inflation by about 0.23 pp over two months.
 
-**Heterogeneity (Fixed Effects, separate samples)**
+The positive policy rate coefficient is not a causal effect. Central banks raise rates when inflation is already rising.
 
-| Variable | Importers | Exporters |
-|---|---|---|
-| Oil shock | 0.0004 (0.0004), p = 0.31 | 0.0004 (0.0004), p = 0.32 |
-| ln NEER | −1.561*** (0.038) | −1.511*** (0.104) |
-| Post-crisis | −0.041 (0.027), p = 0.12 | 0.019 (0.026), p = 0.48 |
+### Headline vs core (n = 798, 9 countries)
 
-**Key findings**
-- The exchange rate is strongly negative in every specification. A stronger currency is associated with lower consumer prices.
-- The policy rate is positive and significant in the pooled and panel models.
-- The oil shock is positive but small. It is not significant under model-based or time-clustered (Driscoll–Kraay) standard errors (p between 0.18 and 0.64), and it is significant at the 5% level only under country-clustered robust errors (p ≈ 0.025 for FE and RE). Treat the oil effect as fragile.
-- The post-crisis dummy is not significant in any model. Only one post-crisis month (March 2026) is observed, so this estimate is weakly identified.
-- ARIMA projections show continued upward CPI pressure through June 2026 across all country groups (see report, Section 7).
+The cumulative oil effect on core inflation is −0.0003 (SE 0.0068, p = 0.97). The short-run pass-through runs through energy and fuel prices, not through broad second-round effects.
 
-## Correction to the Report
+### Robustness: cumulative oil effect
 
-The original report's tables and text were produced while the oil shock variable was silently dropped from every model. The variable was zero for every row because `plm` masks `dplyr::lag()`, which returned the series unchanged. The R script in this repository has been fixed, and the results above are the corrected ones.
+| Sample | n | Cumulative | SE | p |
+|---|---|---|---|---|
+| Full sample | 1,066 | 0.0195 | 0.0093 | 0.036 |
+| Excluding Turkey | 977 | 0.0169 | 0.0052 | 0.001 |
+| 2023 onwards | 538 | 0.0099 | 0.0028 | < 0.001 |
+| Before the 2026 shock | 982 | 0.0223 | 0.0116 | 0.054 |
 
-As a result, the report's main heterogeneity finding (a positive, significant post-crisis effect for oil exporters, β = 0.039, p < 0.05) does not hold in the corrected analysis (β = 0.019, p = 0.48). The Hausman conclusion (prefer Random Effects) is unchanged. The ARIMA forecasts were not affected, since they don't use the oil variable.
+The effect is positive in every sample. It does not depend on the 2026 months. It is smaller in 2023–2026 than over the full period, which includes the 2021–2022 energy surge.
 
-The report needs to be updated before it is cited. The team should agree on the corrected results before publishing.
+### Importers vs exporters
+
+Importer minus exporter, cumulative: −0.0093 (SE 0.0083, p = 0.26). Excluding Turkey: −0.0059 (p = 0.15).
+
+There is no evidence that consumer prices in oil importers respond more to oil than prices in exporters. One likely reason: in the United States and Canada, fuel has a large weight in the CPI and pump prices follow world prices. Being an oil exporter protects the trade balance, not consumers.
+
+### Local projections
+
+Cumulative CPI response to a 1% rise in Brent:
+
+| Months after | 0 | 1 | 2 | 3 | 6 | 12 |
+|---|---|---|---|---|---|---|
+| Response (pp) | 0.011 | 0.019 | 0.024 | 0.025 | 0.031 | 0.082 |
+| SE | 0.003 | 0.005 | 0.008 | 0.011 | 0.017 | 0.024 |
+
+The response is significant up to three months and matches the distributed-lag model. Beyond six months the estimate keeps rising and the bands widen. The long horizons probably pick up the persistent 2021–2022 inflation episode rather than the oil shock alone, so they should be read with caution.
+
+### The 2026 shock: March to September 2026 vs the same months of 2025
+
+| Country | Group | Inflation 2026 (pp) | Inflation 2025 (pp) | Excess (pp) |
+|---|---|---|---|---|
+| Italy | Importer | 3.40 | 0.82 | 2.59 |
+| France | Importer | 2.78 | 0.64 | 2.14 |
+| India | Importer | 4.61 | 3.10 | 1.50 |
+| Poland | Importer | 2.40 | 0.96 | 1.44 |
+| Germany | Importer | 2.80 | 1.48 | 1.32 |
+| Canada | Exporter | 2.44 | 1.16 | 1.28 |
+| United States | Exporter | 3.06 | 1.78 | 1.28 |
+| Korea | Importer | 1.70 | 0.84 | 0.86 |
+| Japan | Importer | 1.98 | 1.21 | 0.77 |
+| Norway | Exporter | 1.75 | 1.10 | 0.65 |
+| Saudi Arabia | Exporter | 1.21 | 1.08 | 0.13 |
+| Turkey | Importer | 14.12 | 15.50 | −1.38 |
+
+- **Excess inflation.** Excluding Turkey, where disinflation dominated, prices rose 1.27 pp more than over the same months of 2025.
+- **Oil's share.** Coefficients estimated on pre-2026 data attribute 0.77 pp of that to oil, about 60%.
+- **Importers vs exporters.** Excess inflation averaged 1.52 pp for importers and 0.84 pp for exporters (Welch p = 0.11, with only 7 and 4 countries). The gap is suggestive but not significant.
+- **Saudi Arabia** had almost no excess inflation. This fits a pegged currency and administered fuel prices.
+
+**ARIMA counterfactual.** An `auto.arima` model fitted to each country's inflation up to February 2026 gives a "no-shock" forecast for March to September. Excluding Turkey, actual inflation exceeded the forecast by 1.00 pp on average. The gap is largest for Italy (2.39 pp), France (2.19), India (1.80) and Japan (1.52), and close to zero for Poland, Saudi Arabia and Norway. Two different baselines, last year's inflation and a time-series forecast, give a similar size for the 2026 shock: about 1 to 1.3 pp. Month by month, though, actual inflation stayed inside the 95% forecast band almost everywhere. Only Germany and the United States had one month above it. The shock shows up as a steady accumulation of small surprises, not as one spike, so the cumulative gap is the meaningful measure. Details are in `outputs/arima_counterfactual_2026.csv`.
+
+## Conclusions
+
+1. Oil shocks pass through to headline inflation quickly. About 0.2 pp per 10% rise in Brent, mostly within two months.
+2. The short-run effect runs through energy prices. Core inflation does not respond.
+3. Being a net oil exporter does not shield consumers. The importer–exporter difference in pass-through is not significant.
+4. Oil explains about 60% of the extra inflation in March–September 2026.
 
 ## Limitations
 
-- **Short post-crisis window.** Only one month (March 2026) of observed data falls after the shock, so the post-crisis estimates are weakly identified.
-- **Forecasts are short and model-based.** ARIMA is fitted country by country on 39 months of data. Treat the April to June 2026 forecasts as indicative only.
-- **Data.** Check each series against its listed source. Confirm whether any part of the 2026 data is constructed rather than observed.
+- **Small panel.** Twelve countries. Group comparisons rest on 7–8 importers and 4 exporters.
+- **Common shock.** The oil effect is identified from time variation in a single world price. Other global events in the same months (supply chains in 2021–2022) may be partly picked up despite the controls.
+- **Not seasonally adjusted.** Seasonality is handled with calendar-month dummies common to all countries.
+- **Data gaps.** US CPI for October 2025 was not published, and some US core values are OECD estimates. See `data/raw/SOURCES.md`.
 
 ## Project Structure
 
 ```
-├── data/        # Gulf_Crisis_Finl.xlsx
-├── src/         # gulf_crisis_panel_analysis.R
-├── docs/        # Final report (PDF) and R output screenshots (PDF)
-├── outputs/     # Figures and forecast CSV (created by the script)
+├── data/
+│   ├── raw/                 # Official files, unchanged, and SOURCES.md
+│   └── panel_monthly.csv    # Built by src/01_build_panel.R
+├── src/
+│   ├── 01_build_panel.R     # Raw files -> panel
+│   └── 02_analysis.R        # Tests, models, 5 figures, forecasts
+├── outputs/                 # Figures and CSV tables (created by the scripts)
+├── docs/archive/            # Original report (superseded)
 ├── install_packages.R
 └── README.md
 ```
 
 ## How to Run
 
-1. Open R or RStudio in the project root (the folder containing `data/` and `src/`).
-2. Install the packages once:
+Open R or RStudio in the project root (the folder that contains `data/` and `src/`), then run:
 
-   ```r
-   source("install_packages.R")
-   ```
-
-3. Run the analysis:
-
-   ```r
-   source("src/gulf_crisis_panel_analysis.R")
-   ```
-
-The script prints all regression tables and diagnostics, and saves the figures and the forecast CSV to `outputs/`. It was tested in R 4.3.3. `stargazer` is optional: if it isn't installed, the script prints plain coefficient tables instead.
+```r
+source("install_packages.R")      # once
+source("src/01_build_panel.R")
+source("src/02_analysis.R")
+```
 
 ## Team
 
@@ -117,4 +172,4 @@ The script prints all regression tables and diagnostics, and saves the figures a
 
 ## License
 
-Code is released under the [MIT License](LICENSE). The data is subject to the terms of its original sources.
+The code is released under the [MIT License](LICENSE). The data belongs to its original providers (OECD, BIS, Federal Reserve Bank of St. Louis, IMF, Cboe) and is subject to their terms. The VIX is © Cboe Global Markets.
